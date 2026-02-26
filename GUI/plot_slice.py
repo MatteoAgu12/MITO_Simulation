@@ -1,59 +1,54 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
 import matplotlib.patches as mpatches
 
-from Geometry.Mesh3D import Mesh3D
-from Geometry.SystemGeometry import SystemGeometry
-
-if __name__ == "__main__":
-    # Parametri geometrici
-    X_max, Y_max, Z_max = 80.0, 80.0, 150.0
-    # Usiamo 81 in modo che l'indice centrale sia esattamente lo zero
-    N_x, N_y, N_z = 81, 81, 150 
+def plot_slice_yz(mesh, phi, a_e):
+    """
+    Estrae e plotta una sezione YZ (passante per X=0) del sistema.
     
-    mesh = Mesh3D(X_max, Y_max, Z_max, N_x, N_y, N_z)
-    sys_geo = SystemGeometry(mesh)
+    - mesh: l'oggetto Mesh3D contenente le coordinate e la material_map
+    - phi: array 3D del potenziale da plottare
+    - a_e: raggio dell'elettrodo (per disegnarlo sul fondo)
+    """
+    # Troviamo l'indice centrale sull'asse X (corrisponde a x=0 se N_x è dispari)
+    x_mid_idx = mesh.N_x // 2
     
-    # Inseriamo la cellula decentrata lungo l'asse Y
-    sys_geo.build_system(
-        h1=40.0, h=60.0, 
-        r_aperture_bottom=20.0, r_aperture_top=45.0,
-        cell_x=0.0, cell_y=15.0, cell_z=70.0, cell_r=15.0
-    )
+    # Estraiamo le matrici 2D corrispondenti a quella fetta
+    slice_y = mesh.Y[x_mid_idx, :, :]
+    slice_z = mesh.Z[x_mid_idx, :, :]
+    slice_pot = phi[x_mid_idx, :, :]
+    slice_mat = mesh.material_map[x_mid_idx, :, :]
     
-    # Trova l'indice esatto corrispondente a x = 0
-    x_mid_idx = N_x // 2
-    print(f"Slice estratto a x = {mesh.x[x_mid_idx]} µm")
+    fig, ax = plt.subplots(figsize=(8, 8))
     
-    # Estraiamo la fetta YZ dalla matrice 3D
-    slice_yz = mesh.material_map[x_mid_idx, :, :]
+    # A. Mappa dei colori per il potenziale
+    # vmin e vmax fissano i limiti dei colori. Preveniamo errori se max è 0.
+    v_max = np.max(np.abs(phi))
+    if v_max == 0: v_max = 1.0 
     
-    # Setup dei colori: 0=Hydrogel(blu), 1=Electrolyte(grigio), 2=Cell(verde)
-    cmap = ListedColormap(['#a0c4ff', '#f8f9fa', '#bbf7d0'])
+    cmap_plot = ax.pcolormesh(slice_y, slice_z, slice_pot, shading='auto', 
+                              cmap='magma', vmin=0, vmax=v_max)
+    plt.colorbar(cmap_plot, ax=ax, label='Potenziale Elettrico (V)')
     
-    plt.figure(figsize=(7, 8))
+    # B. Aggiunta dei contorni dei materiali (Gel vs Elettrolita)
+    if np.any(slice_mat == 0) and np.any(slice_mat == 1):
+        ax.contour(slice_y, slice_z, slice_mat, levels=[0.5], 
+                   colors='white', linewidths=2.5, linestyles='dashed')
+        
+    # C. Aggiunta dell'Elettrodo d'Oro (linea da -a_e a +a_e a z=0)
+    # ax.plot([-a_e, a_e], [0, 0], color='gold', linewidth=6)
     
-    # Plottiamo la fetta (trasponiamo con .T perché pcolormesh usa Y, Z)
-    plt.pcolormesh(mesh.y, mesh.z, slice_yz.T, cmap=cmap, shading='auto')
+    # D. Estetica e legende
+    ax.set_title(f"Distribuzione del Potenziale (Slice YZ a x = {mesh.x[x_mid_idx]:.1f} µm)")
+    ax.set_xlabel(r"Asse Y ($\mu m$)")
+    ax.set_ylabel(r"Asse Z ($\mu m$)")
     
-    # Aggiungiamo l'elettrodo sul fondo per chiarezza (da -a_e a +a_e lungo Y)
-    a_e = 40.0 
-    plt.plot([-a_e, a_e], [0, 0], color='gray', linewidth=5, label='Electrode')
-    
-    # Grafica
-    plt.title(r"Slice 2D sul piano YZ (a $x=0$)")
-    plt.xlabel(r"Asse Y ($\mu m$)")
-    plt.ylabel(r"Asse Z ($\mu m$)")
-    
-    legend_patches = [
-        mpatches.Patch(color='#a0c4ff', label='Hydrogel'),
-        mpatches.Patch(color='#f8f9fa', label='Electrolyte'),
-        mpatches.Patch(color='#bbf7d0', label='Cell'),
-        mpatches.Patch(color='gray', label='Electrode')
+    legend_elements = [
+        mpatches.Patch(facecolor='none', edgecolor='white', linestyle='--', linewidth=2.5, label='Bordo Idrogelo/Elettrolita'),
+        mpatches.Patch(facecolor='gold', label='Elettrodo in Oro')
     ]
-    plt.legend(handles=legend_patches, loc='upper right')
+    ax.legend(handles=legend_elements, loc='upper right')
     
-    plt.axis('equal')
+    ax.axis('equal') # Proporzioni corrette
     plt.tight_layout()
     plt.show()
