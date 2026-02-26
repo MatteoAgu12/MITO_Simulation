@@ -1,1 +1,7 @@
-*/__pycache__
+Boundaries/__pycache__
+Geometry/__pycache__
+GUI/__pycache__
+Materials/__pycache__
+PostProcess/__pycache__
+Solver/__pycache__
+proj.tar
